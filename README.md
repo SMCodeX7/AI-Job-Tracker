@@ -1,14 +1,16 @@
 # AI Job Tracker
 
-An automated job tracking system that collects LinkedIn job alerts from Gmail, processes and scores job opportunities using n8n, stores relevant jobs in Supabase, and displays them through a Next.js dashboard.
+An automated job tracking system that collects LinkedIn job alerts from Gmail, processes and scores job opportunities using n8n, stores relevant jobs in Supabase, and provides a secure Next.js dashboard for reviewing and tracking applications.
 
 ---
 
 ## Overview
 
-AI Job Tracker automates the process of discovering and managing relevant job opportunities.
+AI Job Tracker automates the process of discovering, evaluating, and managing relevant job opportunities.
 
-The system monitors LinkedIn job-alert emails, extracts individual job listings, calculates a relevance score based on predefined career preferences, filters unsuitable jobs, removes duplicates, stores suitable opportunities in Supabase, and provides a dashboard for managing job applications.
+The system monitors LinkedIn job-alert emails, extracts individual job listings, calculates a relevance score based on predefined career preferences, filters unsuitable opportunities, prevents duplicate jobs, stores relevant results in Supabase, and displays them through a private authenticated dashboard.
+
+The application is currently designed as a **single-user private job tracking dashboard**.
 
 ---
 
@@ -32,6 +34,8 @@ LinkedIn Job Alerts
  Remove Duplicate Jobs
         ↓
      Supabase
+        ↓
+ Supabase Authentication
         ↓
  Next.js Dashboard
         ↓
@@ -65,19 +69,22 @@ LinkedIn Job Alerts
 
 - Uses LinkedIn Job ID for duplicate detection
 - Prevents previously processed jobs from being inserted again
-- Supabase also maintains a unique `job_id` constraint
+- Supabase maintains a unique `job_id` constraint as an additional safeguard
 
 ### Job Dashboard
 
 - Displays jobs stored in Supabase
-- Search by:
-  - Job title
-  - Company
-  - Location
+- Search by job title
+- Search by company
+- Search by location
 - Filter by match level
 - Filter by application status
-- Responsive dashboard layout
-- Direct LinkedIn job links
+- View match score
+- View match reason
+- View Easy Apply status
+- View actively recruiting status
+- Open jobs directly on LinkedIn
+- Responsive dashboard interface
 
 ### Application Tracking
 
@@ -88,7 +95,7 @@ Jobs can be tracked using the following statuses:
 - Applied
 - Rejected
 
-When a job is changed to `Applied`, the system automatically records the application date.
+When a job is changed to `Applied` for the first time, the application timestamp is automatically recorded.
 
 ### Dashboard Statistics
 
@@ -103,11 +110,24 @@ The dashboard displays:
 - Applied Jobs
 - Rejected Jobs
 
+### Authentication and Security
+
+- Private dashboard authentication using Supabase Auth
+- Email/password sign-in
+- Protected `/jobs` route
+- Unauthenticated users are redirected to `/login`
+- Sign-out functionality
+- Supabase Row Level Security enabled
+- Anonymous users cannot read job data
+- Anonymous users cannot update job data
+- Authenticated users can read jobs
+- Authenticated users can update only application-related fields required by the dashboard
+
 ---
 
 ## Match Scoring
 
-Jobs are scored based on their relevance to Data Science, Artificial Intelligence, Machine Learning, Analytics, and related entry-level career opportunities.
+Jobs are scored according to their relevance to Data Science, Artificial Intelligence, Machine Learning, Analytics, and related entry-level career opportunities.
 
 ### High-Value Roles
 
@@ -140,18 +160,26 @@ The scoring workflow also considers terms such as:
 - Predictive Analytics
 - Research
 
-### Career-Level Priority
+### Internship Priority
 
-Additional points are given to:
+Additional points are given to titles containing terms such as:
 
-- Internship
 - Intern
+- Internship
 - Co-op
 - Trainee
+
+### Entry-Level Priority
+
+Additional points are also given to:
+
 - Junior
+- Entry Level
 - Entry-Level
 - Graduate
 - Associate
+
+### Senior-Level Penalty
 
 Senior roles receive a negative score adjustment.
 
@@ -166,6 +194,13 @@ Examples include:
 - Architect
 - Head of
 
+### Additional Scoring Factors
+
+The workflow can also increase the score when:
+
+- The LinkedIn email alert itself is related to Data Science, AI, ML, Analytics, Data Engineering, or Business Intelligence
+- Easy Apply is available
+
 ### Match Levels
 
 | Score | Match Level |
@@ -176,7 +211,7 @@ Examples include:
 
 Only **Medium** and **High** matches continue to Supabase.
 
-Legacy jobs that were inserted before relevance scoring was introduced are displayed as:
+Legacy jobs inserted before relevance scoring was introduced are displayed as:
 
 ```text
 Unscored
@@ -189,14 +224,20 @@ Unscored
 ### Frontend
 
 - Next.js
-- TypeScript
 - React
+- TypeScript
 - Tailwind CSS
+
+### Authentication
+
+- Supabase Auth
+- Email/password authentication
 
 ### Database
 
 - Supabase
 - PostgreSQL
+- Row Level Security
 
 ### Automation
 
@@ -228,8 +269,19 @@ AI-Job-Tracker/
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── jobs/
+│   │   │   │   ├── layout.tsx
 │   │   │   │   └── page.tsx
+│   │   │   │
+│   │   │   ├── login/
+│   │   │   │   └── page.tsx
+│   │   │   │
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
 │   │   │   └── page.tsx
+│   │   │
+│   │   ├── components/
+│   │   │   └── auth/
+│   │   │       └── sign-out-button.tsx
 │   │   │
 │   │   └── lib/
 │   │       └── supabase/
@@ -237,6 +289,9 @@ AI-Job-Tracker/
 │   │
 │   ├── .env.local
 │   ├── package.json
+│   ├── package-lock.json
+│   ├── next.config.ts
+│   ├── tsconfig.json
 │   └── ...
 │
 ├── .gitignore
@@ -244,13 +299,57 @@ AI-Job-Tracker/
 └── README.md
 ```
 
-> `.env.local` is excluded from GitHub and must never contain credentials that are committed to source control.
+> `.env.local` is excluded from GitHub and must never be committed.
+
+---
+
+## Application Routes
+
+### Root
+
+```text
+/
+```
+
+The root route redirects users to:
+
+```text
+/jobs
+```
+
+### Login
+
+```text
+/login
+```
+
+Provides the Supabase email/password login form.
+
+### Jobs Dashboard
+
+```text
+/jobs
+```
+
+Protected dashboard used to:
+
+- View jobs
+- Search jobs
+- Filter jobs
+- Update application statuses
+- Track application dates
+
+If no authenticated Supabase user is found, the user is redirected to:
+
+```text
+/login
+```
 
 ---
 
 ## Database
 
-The main database table is:
+The main Supabase table is:
 
 ```text
 jobs
@@ -270,12 +369,12 @@ jobs
 | `easy_apply` | Indicates Easy Apply availability |
 | `actively_recruiting` | Indicates whether the company is actively recruiting |
 | `email_subject` | LinkedIn alert email subject |
-| `received_at` | Date the alert email was received |
+| `received_at` | Date the LinkedIn alert was received |
 | `match_score` | Calculated relevance score |
 | `match_level` | High, Medium, Low, or Unscored |
 | `filter_reason` | Explanation of the relevance score |
 | `status` | Application status |
-| `applied_at` | Date the application was submitted |
+| `applied_at` | Date the application was first marked Applied |
 | `created_at` | Database creation timestamp |
 | `updated_at` | Last update timestamp |
 
@@ -283,7 +382,7 @@ jobs
 
 ## Supabase SQL Setup
 
-The database was configured using the following SQL steps:
+The Supabase database was configured through the following SQL stages:
 
 ```text
 01_create_jobs_table
@@ -292,15 +391,20 @@ The database was configured using the following SQL steps:
 04_add_job_status_tracking
 05_mark_legacy_jobs_unscored
 06_add_application_tracking
+07_secure_authenticated_jobs_access
 ```
 
-### SQL Responsibilities
+### 01_create_jobs_table
 
-#### 01_create_jobs_table
+Creates the main:
 
-Creates the main `jobs` table.
+```text
+jobs
+```
 
-#### 02_add_job_matching_columns
+table and its initial fields.
+
+### 02_add_job_matching_columns
 
 Adds:
 
@@ -310,23 +414,38 @@ match_level
 filter_reason
 ```
 
-#### 03_add_jobs_read_policy
+for relevance scoring.
 
-Adds the required Supabase read permissions for the dashboard.
+### 03_add_jobs_read_policy
 
-#### 04_add_job_status_tracking
+Initially enabled browser-side reading during MVP development.
 
-Adds application-status validation and frontend update permission.
+This public policy was later replaced by the authenticated security configuration in step `07`.
 
-#### 05_mark_legacy_jobs_unscored
+### 04_add_job_status_tracking
 
-Marks jobs inserted before relevance scoring as:
+Adds application status validation and allows the dashboard to update job statuses.
+
+Supported statuses are:
+
+```text
+new
+saved
+applied
+rejected
+```
+
+### 05_mark_legacy_jobs_unscored
+
+Marks jobs inserted before relevance scoring was enabled as:
 
 ```text
 unscored
 ```
 
-#### 06_add_application_tracking
+instead of incorrectly displaying them as Medium matches.
+
+### 06_add_application_tracking
 
 Adds:
 
@@ -334,13 +453,111 @@ Adds:
 applied_at
 ```
 
-for storing the application date.
+for recording when an application is first marked as Applied.
+
+### 07_secure_authenticated_jobs_access
+
+Secures the `jobs` table for authenticated dashboard access.
+
+This configuration:
+
+- Keeps Row Level Security enabled
+- Removes anonymous read access
+- Removes anonymous update access
+- Grants job read access to authenticated users
+- Allows authenticated users to update `status`
+- Allows authenticated users to update `applied_at`
+- Replaces the earlier public RLS policies with authenticated-user policies
+
+---
+
+## Authentication
+
+The application uses Supabase Authentication.
+
+The current MVP uses:
+
+```text
+Email + Password
+```
+
+A user signs in through:
+
+```text
+/login
+```
+
+After successful authentication:
+
+```text
+/login
+   ↓
+Supabase Authentication
+   ↓
+/jobs
+```
+
+The jobs route checks the currently authenticated Supabase user before displaying the dashboard.
+
+If authentication is missing:
+
+```text
+/jobs
+   ↓
+Authentication check
+   ↓
+No user
+   ↓
+/login
+```
+
+---
+
+## Current Access Model
+
+The project is currently operated as a:
+
+```text
+Single-user private dashboard
+```
+
+Only one Supabase user account is intended to be provisioned for the current MVP.
+
+The database policies currently allow access based on the Supabase `authenticated` role.
+
+Therefore, if additional Supabase users are created in the future, per-user ownership policies should also be introduced before treating the application as a multi-user system.
+
+---
+
+## Sign Out
+
+The dashboard contains a:
+
+```text
+Sign Out
+```
+
+button.
+
+The sign-out process is:
+
+```text
+Dashboard
+   ↓
+Sign Out
+   ↓
+Supabase session removed
+   ↓
+/login
+```
+
+After signing out, attempting to access `/jobs` again redirects the user to the login page.
 
 ---
 
 ## n8n Workflow
 
-The n8n automation contains the following nodes:
+The automation workflow contains the following nodes:
 
 ```text
 Gmail Trigger
@@ -358,21 +575,29 @@ Skip Previously Seen Jobs
 Create a row
 ```
 
-### Gmail Trigger
+---
 
-Monitors Gmail for emails from:
+## Gmail Trigger
+
+The workflow monitors Gmail for LinkedIn Job Alert emails from:
 
 ```text
 jobalerts-noreply@linkedin.com
 ```
 
-### Get a Message
+The Gmail Trigger starts the workflow when matching messages are detected.
 
-Retrieves the full LinkedIn alert email.
+---
 
-### Extract LinkedIn Jobs
+## Get a Message
 
-Extracts:
+This node retrieves the complete LinkedIn Job Alert email so that its HTML content can be processed.
+
+---
+
+## Extract LinkedIn Jobs
+
+The extraction node parses each LinkedIn job card and extracts:
 
 - Job ID
 - Job title
@@ -384,41 +609,103 @@ Extracts:
 - Email subject
 - Received date
 
-### Score Job Relevance
+The node also removes accidental duplicates found within the same email.
 
-Calculates a relevance score for each job.
+---
 
-### Keep Medium & High Matches
+## Score Job Relevance
 
-Only allows jobs with:
+Each extracted job is evaluated using rule-based relevance scoring.
+
+The workflow considers:
+
+- Role relevance
+- Data/AI/ML terminology
+- Internship level
+- Entry level
+- Seniority
+- Related technical skills
+- LinkedIn alert context
+- Easy Apply availability
+
+The resulting values include:
+
+```text
+match_score
+match_level
+filter_reason
+```
+
+---
+
+## Keep Medium & High Matches
+
+Only jobs where:
 
 ```text
 match_score >= 50
 ```
 
-to continue.
+continue through the workflow.
 
-### Skip Previously Seen Jobs
+This prevents Low matches from being stored in the main job tracker.
 
-Prevents jobs that were previously processed from being inserted again.
+---
 
-### Create a Row
+## Duplicate Prevention
 
-Stores new relevant jobs in Supabase.
+The node:
+
+```text
+Skip Previously Seen Jobs
+```
+
+uses:
+
+```text
+job_id
+```
+
+to prevent previously processed jobs from continuing to Supabase.
+
+The database also applies a unique constraint to `job_id` as an additional safety layer.
+
+---
+
+## Supabase Insertion
+
+The final n8n node:
+
+```text
+Create a row
+```
+
+stores relevant jobs in the Supabase:
+
+```text
+jobs
+```
+
+table.
 
 ---
 
 ## n8n Workflow Export
 
-A sanitized version of the n8n workflow is included in:
+A sanitized version of the n8n workflow is stored in:
 
 ```text
 n8n/linkedin-job-alert-pipeline.json
 ```
 
-The GitHub version does not contain private execution data or secret credentials.
+The public GitHub workflow does not contain:
 
-After importing the workflow into another n8n environment, the user must configure their own:
+- Gmail OAuth secrets
+- Supabase secret keys
+- Passwords
+- Private pinned email execution data
+
+Users importing the workflow must configure their own:
 
 - Gmail OAuth credential
 - Supabase credential
@@ -427,7 +714,7 @@ After importing the workflow into another n8n environment, the user must configu
 
 ## Environment Variables
 
-Create the following file:
+Create:
 
 ```text
 web/.env.local
@@ -440,16 +727,25 @@ NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
 ```
 
-Do not commit `.env.local`.
+The frontend uses only the Supabase publishable key.
 
-Never expose:
+Do not place a Supabase backend secret or service-role key inside frontend environment variables.
+
+---
+
+## Sensitive Information
+
+Never commit:
 
 ```text
+.env
+.env.local
 Supabase secret keys
 Supabase service-role keys
 Google OAuth client secrets
 Database passwords
 API secrets
+Authentication passwords
 ```
 
 ---
@@ -462,7 +758,7 @@ API secrets
 git clone <your-repository-url>
 ```
 
-Open the project:
+Move into the project:
 
 ```bash
 cd AI-Job-Tracker
@@ -479,7 +775,7 @@ npm install
 
 ---
 
-### 3. Configure Supabase Environment Variables
+### 3. Configure Environment Variables
 
 Create:
 
@@ -487,13 +783,32 @@ Create:
 web/.env.local
 ```
 
-Add your Supabase project URL and publishable key.
+Add:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=your_supabase_publishable_key
+```
 
 ---
 
-### 4. Start the Next.js Application
+### 4. Configure Supabase
 
-Inside the `web` directory:
+Create the required `jobs` table and database policies using the SQL setup described above.
+
+Also create the Supabase user account that will access the private dashboard.
+
+---
+
+### 5. Start the Next.js Application
+
+Inside:
+
+```text
+web/
+```
+
+run:
 
 ```bash
 npm run dev
@@ -505,11 +820,23 @@ Open:
 http://localhost:3000
 ```
 
+The root route redirects to:
+
+```text
+http://localhost:3000/jobs
+```
+
+If you are not logged in, the application redirects to:
+
+```text
+http://localhost:3000/login
+```
+
 ---
 
 ## Running n8n Locally
 
-Start n8n using:
+Start n8n:
 
 ```bash
 npx n8n
@@ -527,37 +854,92 @@ Import:
 n8n/linkedin-job-alert-pipeline.json
 ```
 
-Then connect:
+Configure your own:
 
 - Gmail OAuth credential
 - Supabase credential
 
-Publish the workflow.
+Then publish the workflow.
 
-The local n8n process must remain running for automatic Gmail-triggered processing to continue.
+---
+
+## Local Automation Limitation
+
+The current n8n workflow runs locally.
+
+Therefore:
+
+```text
+Computer ON
++
+n8n running
+        ↓
+LinkedIn alerts continue to be processed
+```
+
+If the computer is turned off or the n8n process is stopped:
+
+```text
+n8n stops
+        ↓
+New emails are not automatically processed
+```
+
+Existing jobs already stored in Supabase remain available through the dashboard.
+
+Cloud-hosting n8n is planned as a future improvement.
+
+---
+
+## Production Checks
+
+Before deployment, run:
+
+```bash
+npm run lint
+```
+
+Then:
+
+```bash
+npm run build
+```
+
+The application should successfully build the following routes:
+
+```text
+/
+/jobs
+/login
+```
 
 ---
 
 ## Dashboard
 
-The dashboard allows the user to:
+The dashboard allows the authenticated user to:
 
 - View automatically collected jobs
 - Search job opportunities
 - Filter by match level
 - Filter by application status
 - View relevance scores
-- View scoring reasons
+- View scoring explanations
+- View Easy Apply information
+- View actively recruiting information
 - Open LinkedIn job listings
 - Save interesting jobs
-- Mark jobs as applied
-- Mark jobs as rejected
+- Mark jobs as Applied
+- Mark jobs as Rejected
 - Track application dates
-- View job and application statistics
+- View application statistics
+- Sign out securely
 
 ---
 
 ## Application Status Workflow
+
+The dashboard supports:
 
 ```text
 New
@@ -569,7 +951,7 @@ Applied
 Rejected
 ```
 
-The user is not required to follow this exact order.
+The user does not need to follow this exact order.
 
 For example:
 
@@ -585,11 +967,13 @@ When a job is changed to:
 Applied
 ```
 
-the application timestamp is automatically stored in:
+for the first time, the current timestamp is stored in:
 
 ```text
 applied_at
 ```
+
+Changing the job to another status later does not remove the original application date.
 
 ---
 
@@ -597,29 +981,59 @@ applied_at
 
 Sensitive credentials are excluded from source control.
 
-The following files or values must never be committed:
+### Browser Application
+
+The frontend uses:
 
 ```text
-.env
-.env.local
-Supabase secret keys
-Supabase service-role keys
-Google OAuth secrets
-Database passwords
-API secrets
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 ```
 
-The n8n workflow stored in this repository is sanitized before being uploaded to GitHub.
+This key is intended for browser-side Supabase access and relies on Row Level Security for data protection.
 
-The frontend uses only the Supabase publishable key.
+### Anonymous Access
 
-Backend automation uses protected credentials configured directly inside n8n.
+```text
+anon
+  ↓
+No job read access
+  ↓
+No job update access
+```
+
+### Authenticated Access
+
+```text
+authenticated
+      ↓
+Read jobs
+      ↓
+Update status
+      ↓
+Update applied_at
+```
+
+### Route Protection
+
+```text
+/jobs
+  ↓
+Check Supabase user
+  ↓
+Authenticated?
+  ├── Yes → Dashboard
+  └── No  → /login
+```
+
+### n8n Credentials
+
+Backend automation credentials are stored inside n8n and are not included in the GitHub workflow export.
 
 ---
 
 ## Current MVP Status
 
-The current MVP supports the complete pipeline:
+The current MVP supports the complete workflow:
 
 ```text
 LinkedIn
@@ -638,6 +1052,8 @@ Duplicate Prevention
    ↓
 Supabase
    ↓
+Authentication
+   ↓
 Next.js Dashboard
    ↓
 Application Tracking
@@ -647,18 +1063,29 @@ Application Tracking
 
 - LinkedIn job-alert integration
 - Gmail trigger
-- Job extraction
-- Job scoring
-- Match-level filtering
+- LinkedIn job extraction
+- Rule-based job scoring
+- Match-level classification
+- Relevance filtering
 - Duplicate prevention
-- Supabase storage
+- Supabase database storage
 - Next.js dashboard
-- Job searching
-- Job filtering
+- Search functionality
+- Match-level filters
+- Application-status filters
 - Application status tracking
-- Applied-date tracking
+- Application date tracking
 - Dashboard statistics
 - Responsive dashboard UI
+- Supabase email/password authentication
+- Protected `/jobs` route
+- Login page
+- Sign-out functionality
+- Authenticated-only database access
+- Secured Supabase RLS policies
+- Sanitized n8n workflow export
+- Production lint validation
+- Production build validation
 
 ---
 
@@ -672,7 +1099,7 @@ Potential future development includes:
 - Cover-letter generation
 - Job-description analysis
 - Skill-gap analysis
-- AI job recommendations
+- AI-powered job recommendations
 - Application-email detection
 - Interview invitation detection
 - Interview tracking
@@ -683,32 +1110,66 @@ Potential future development includes:
 - Company-quality verification
 - Salary analysis
 - Notification system
-- Authentication
-- Multiple user support
+- Per-user job ownership
+- Multiple-user support
+- Role-based access control
 - Cloud-hosted n8n automation
-- Public deployment
+- 24/7 job collection
+- Public production deployment
 
 ---
 
 ## Development Branches
 
-Development can be managed using:
+The project uses:
 
 ```text
 main
 develop
 ```
 
-The `develop` branch is used for ongoing development before stable changes are merged into `main`.
+### `main`
+
+Contains the stable version of the application.
+
+### `develop`
+
+Used for ongoing development before stable features are merged into `main`.
+
+---
+
+## Git Workflow
+
+Typical development workflow:
+
+```text
+develop
+   ↓
+Implement / Test
+   ↓
+Commit
+   ↓
+Push
+   ↓
+Merge
+   ↓
+main
+```
 
 ---
 
 ## License
 
-This project is licensed under the terms provided in the `LICENSE` file.
+This project is licensed under the terms provided in the:
+
+```text
+LICENSE
+```
+
+file.
 
 ---
 
 ## Author
 
-Developed as an automation and job-management project focused on simplifying the process of discovering, evaluating, and tracking relevant internship and entry-level technology opportunities.
+Developed as an automation and job-management project focused on simplifying the process of discovering, evaluating, securing, and tracking relevant internship and entry-level technology opportunities.
