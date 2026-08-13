@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 type JobStatus = "new" | "saved" | "applied" | "rejected";
 
@@ -257,9 +258,13 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 self-start rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 md:self-auto">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Automation Active
+          <div className="flex items-center gap-3 self-start md:self-auto">
+            <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              Automation Active
+            </div>
+
+            <SignOutButton />
           </div>
         </div>
       </header>
