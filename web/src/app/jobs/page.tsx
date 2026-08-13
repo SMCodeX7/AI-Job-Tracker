@@ -94,12 +94,7 @@ export default function Home() {
         matchesStatus
       );
     });
-  }, [
-    jobs,
-    search,
-    matchFilter,
-    statusFilter,
-  ]);
+  }, [jobs, search, matchFilter, statusFilter]);
 
   const totalJobs = jobs.length;
 
@@ -111,8 +106,20 @@ export default function Home() {
     (job) => job.match_level === "medium"
   ).length;
 
+  const newJobs = jobs.filter(
+    (job) => job.status === "new"
+  ).length;
+
+  const savedJobs = jobs.filter(
+    (job) => job.status === "saved"
+  ).length;
+
   const appliedJobs = jobs.filter(
     (job) => job.status === "applied"
+  ).length;
+
+  const rejectedJobs = jobs.filter(
+    (job) => job.status === "rejected"
   ).length;
 
   async function updateJobStatus(
@@ -138,8 +145,7 @@ export default function Home() {
       status: newStatus,
     };
 
-    // Save the application date only the first time
-    // the job is changed to Applied.
+    // Save the first application date when a job becomes Applied.
     if (
       newStatus === "applied" &&
       !currentJob.applied_at
@@ -212,33 +218,77 @@ export default function Home() {
           </h1>
 
           <p className="mt-2 text-slate-500">
-            Track relevant jobs collected
-            automatically from your LinkedIn alerts.
+            Track relevant jobs collected automatically from your
+            LinkedIn alerts.
           </p>
         </header>
 
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Total Jobs"
-            value={totalJobs}
-          />
+        {/* Match overview */}
+        <section>
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Match Overview
+            </h2>
 
-          <StatCard
-            label="High Matches"
-            value={highMatches}
-          />
+            <p className="mt-1 text-sm text-slate-500">
+              Overview of jobs collected and their relevance.
+            </p>
+          </div>
 
-          <StatCard
-            label="Medium Matches"
-            value={mediumMatches}
-          />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <StatCard
+              label="Total Jobs"
+              value={totalJobs}
+            />
 
-          <StatCard
-            label="Applied"
-            value={appliedJobs}
-          />
+            <StatCard
+              label="High Matches"
+              value={highMatches}
+            />
+
+            <StatCard
+              label="Medium Matches"
+              value={mediumMatches}
+            />
+          </div>
         </section>
 
+        {/* Application tracking */}
+        <section className="mt-8">
+          <div className="mb-3">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Application Tracking
+            </h2>
+
+            <p className="mt-1 text-sm text-slate-500">
+              Current progress of your job applications.
+            </p>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <StatCard
+              label="New"
+              value={newJobs}
+            />
+
+            <StatCard
+              label="Saved"
+              value={savedJobs}
+            />
+
+            <StatCard
+              label="Applied"
+              value={appliedJobs}
+            />
+
+            <StatCard
+              label="Rejected"
+              value={rejectedJobs}
+            />
+          </div>
+        </section>
+
+        {/* Search and filters */}
         <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="grid gap-4 md:grid-cols-3">
             <input
@@ -305,6 +355,7 @@ export default function Home() {
           </div>
         </section>
 
+        {/* Job list */}
         <section className="mt-6">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-lg font-semibold text-slate-900">
@@ -328,9 +379,7 @@ export default function Home() {
                 <JobCard
                   key={job.id}
                   job={job}
-                  onStatusChange={
-                    updateJobStatus
-                  }
+                  onStatusChange={updateJobStatus}
                 />
               ))}
             </div>
@@ -350,7 +399,7 @@ function StatCard({
 }) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <p className="text-sm text-slate-500">
+      <p className="text-sm font-medium text-slate-500">
         {label}
       </p>
 
@@ -383,9 +432,7 @@ function JobCard({
 
   const formattedAppliedDate =
     job.applied_at
-      ? new Date(
-          job.applied_at
-        ).toLocaleString()
+      ? new Date(job.applied_at).toLocaleString()
       : null;
 
   return (
@@ -406,13 +453,11 @@ function JobCard({
           </div>
 
           <p className="mt-2 font-medium text-slate-700">
-            {job.company ??
-              "Unknown company"}
+            {job.company ?? "Unknown company"}
           </p>
 
           <p className="mt-1 text-sm text-slate-500">
-            {job.location ??
-              "Location unavailable"}
+            {job.location ?? "Location unavailable"}
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">
