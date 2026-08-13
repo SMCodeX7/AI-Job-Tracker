@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+type JobStatus = "new" | "saved" | "applied" | "rejected";
+
 type Job = {
   id: number;
   job_id: string;
@@ -16,7 +18,8 @@ type Job = {
   match_score: number;
   match_level: string;
   filter_reason: string | null;
-  status: string;
+  status: JobStatus;
+  applied_at: string | null;
   created_at: string;
 };
 
@@ -50,6 +53,7 @@ export default function Home() {
           match_level,
           filter_reason,
           status,
+          applied_at,
           created_at
         `
         )
@@ -58,7 +62,7 @@ export default function Home() {
       if (error) {
         setError(error.message);
       } else {
-        setJobs(data ?? []);
+        setJobs((data ?? []) as Job[]);
       }
 
       setLoading(false);
@@ -77,14 +81,25 @@ export default function Home() {
         job.location?.toLowerCase().includes(searchText);
 
       const matchesLevel =
-        matchFilter === "all" || job.match_level === matchFilter;
+        matchFilter === "all" ||
+        job.match_level === matchFilter;
 
       const matchesStatus =
-        statusFilter === "all" || job.status === statusFilter;
+        statusFilter === "all" ||
+        job.status === statusFilter;
 
-      return matchesSearch && matchesLevel && matchesStatus;
+      return (
+        matchesSearch &&
+        matchesLevel &&
+        matchesStatus
+      );
     });
-  }, [jobs, search, matchFilter, statusFilter]);
+  }, [
+    jobs,
+    search,
+    matchFilter,
+    statusFilter,
+  ]);
 
   const totalJobs = jobs.length;
 
@@ -102,19 +117,46 @@ export default function Home() {
 
   async function updateJobStatus(
     jobId: number,
-    newStatus: string
+    newStatus: JobStatus
   ) {
+    const currentJob = jobs.find(
+      (job) => job.id === jobId
+    );
+
+    if (!currentJob) {
+      return;
+    }
+
     const supabase = createClient();
+
+    let appliedAt = currentJob.applied_at;
+
+    const updateData: {
+      status: JobStatus;
+      applied_at?: string;
+    } = {
+      status: newStatus,
+    };
+
+    // Save the application date only the first time
+    // the job is changed to Applied.
+    if (
+      newStatus === "applied" &&
+      !currentJob.applied_at
+    ) {
+      appliedAt = new Date().toISOString();
+      updateData.applied_at = appliedAt;
+    }
 
     const { error } = await supabase
       .from("jobs")
-      .update({
-        status: newStatus,
-      })
+      .update(updateData)
       .eq("id", jobId);
 
     if (error) {
-      alert(`Unable to update status: ${error.message}`);
+      alert(
+        `Unable to update status: ${error.message}`
+      );
       return;
     }
 
@@ -124,6 +166,7 @@ export default function Home() {
           ? {
               ...job,
               status: newStatus,
+              applied_at: appliedAt,
             }
           : job
       )
@@ -133,7 +176,9 @@ export default function Home() {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50">
-        <p className="text-slate-600">Loading jobs...</p>
+        <p className="text-slate-600">
+          Loading jobs...
+        </p>
       </main>
     );
   }
@@ -146,7 +191,9 @@ export default function Home() {
             Unable to load jobs
           </h1>
 
-          <p className="mt-2 text-red-600">{error}</p>
+          <p className="mt-2 text-red-600">
+            {error}
+          </p>
         </div>
       </main>
     );
@@ -165,8 +212,8 @@ export default function Home() {
           </h1>
 
           <p className="mt-2 text-slate-500">
-            Track relevant jobs collected automatically from your
-            LinkedIn alerts.
+            Track relevant jobs collected
+            automatically from your LinkedIn alerts.
           </p>
         </header>
 
@@ -221,6 +268,10 @@ export default function Home() {
 
               <option value="medium">
                 Medium matches
+              </option>
+
+              <option value="unscored">
+                Unscored
               </option>
             </select>
 
@@ -317,18 +368,30 @@ function JobCard({
   job: Job;
   onStatusChange: (
     jobId: number,
-    status: string
+    status: JobStatus
   ) => void;
 }) {
   const levelStyles =
     job.match_level === "high"
       ? "bg-emerald-100 text-emerald-700"
-      : "bg-amber-100 text-amber-700";
+      : job.match_level === "medium"
+        ? "bg-amber-100 text-amber-700"
+        : "bg-slate-100 text-slate-600";
+
+  const formattedAddedDate =
+    new Date(job.created_at).toLocaleString();
+
+  const formattedAppliedDate =
+    job.applied_at
+      ? new Date(
+          job.applied_at
+        ).toLocaleString()
+      : null;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
       <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
-        <div>
+        <div className="flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-xl font-semibold text-slate-900">
               {job.title}
@@ -365,32 +428,9 @@ function JobCard({
               </span>
             )}
 
-            <select
-              value={job.status}
-              onChange={(event) =>
-                onStatusChange(
-                  job.id,
-                  event.target.value
-                )
-              }
-              className="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
-            >
-              <option value="new">
-                New
-              </option>
-
-              <option value="saved">
-                Saved
-              </option>
-
-              <option value="applied">
-                Applied
-              </option>
-
-              <option value="rejected">
-                Rejected
-              </option>
-            </select>
+            <span className="rounded-md bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+              {job.source}
+            </span>
           </div>
 
           {job.filter_reason && (
@@ -398,16 +438,57 @@ function JobCard({
               {job.filter_reason}
             </p>
           )}
+
+          <div className="mt-4 space-y-1">
+            <p className="text-xs text-slate-400">
+              Added: {formattedAddedDate}
+            </p>
+
+            {formattedAppliedDate && (
+              <p className="text-xs font-medium text-emerald-600">
+                Applied: {formattedAppliedDate}
+              </p>
+            )}
+          </div>
         </div>
 
-        <a
-          href={job.job_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
-        >
-          View Job
-        </a>
+        <div className="flex shrink-0 flex-col gap-3 md:min-w-[150px]">
+          <select
+            value={job.status}
+            onChange={(event) =>
+              onStatusChange(
+                job.id,
+                event.target.value as JobStatus
+              )
+            }
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:border-blue-500"
+          >
+            <option value="new">
+              New
+            </option>
+
+            <option value="saved">
+              Saved
+            </option>
+
+            <option value="applied">
+              Applied
+            </option>
+
+            <option value="rejected">
+              Rejected
+            </option>
+          </select>
+
+          <a
+            href={job.job_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+          >
+            View Job
+          </a>
+        </div>
       </div>
     </article>
   );
