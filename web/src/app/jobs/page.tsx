@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Job = {
@@ -10,6 +10,9 @@ type Job = {
   company: string | null;
   location: string | null;
   job_url: string;
+  source: string;
+  easy_apply: boolean;
+  actively_recruiting: boolean;
   match_score: number;
   match_level: string;
   filter_reason: string | null;
@@ -17,10 +20,14 @@ type Job = {
   created_at: string;
 };
 
-export default function JobsPage() {
+export default function Home() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [search, setSearch] = useState("");
+  const [matchFilter, setMatchFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
     async function loadJobs() {
@@ -29,7 +36,22 @@ export default function JobsPage() {
       const { data, error } = await supabase
         .from("jobs")
         .select(
-          "id, job_id, title, company, location, job_url, match_score, match_level, filter_reason, status, created_at"
+          `
+          id,
+          job_id,
+          title,
+          company,
+          location,
+          job_url,
+          source,
+          easy_apply,
+          actively_recruiting,
+          match_score,
+          match_level,
+          filter_reason,
+          status,
+          created_at
+        `
         )
         .order("created_at", { ascending: false });
 
@@ -45,43 +67,348 @@ export default function JobsPage() {
     loadJobs();
   }, []);
 
+  const filteredJobs = useMemo(() => {
+    return jobs.filter((job) => {
+      const searchText = search.toLowerCase().trim();
+
+      const matchesSearch =
+        job.title.toLowerCase().includes(searchText) ||
+        job.company?.toLowerCase().includes(searchText) ||
+        job.location?.toLowerCase().includes(searchText);
+
+      const matchesLevel =
+        matchFilter === "all" || job.match_level === matchFilter;
+
+      const matchesStatus =
+        statusFilter === "all" || job.status === statusFilter;
+
+      return matchesSearch && matchesLevel && matchesStatus;
+    });
+  }, [jobs, search, matchFilter, statusFilter]);
+
+  const totalJobs = jobs.length;
+
+  const highMatches = jobs.filter(
+    (job) => job.match_level === "high"
+  ).length;
+
+  const mediumMatches = jobs.filter(
+    (job) => job.match_level === "medium"
+  ).length;
+
+  const appliedJobs = jobs.filter(
+    (job) => job.status === "applied"
+  ).length;
+
+  async function updateJobStatus(
+    jobId: number,
+    newStatus: string
+  ) {
+    const supabase = createClient();
+
+    const { error } = await supabase
+      .from("jobs")
+      .update({
+        status: newStatus,
+      })
+      .eq("id", jobId);
+
+    if (error) {
+      alert(`Unable to update status: ${error.message}`);
+      return;
+    }
+
+    setJobs((currentJobs) =>
+      currentJobs.map((job) =>
+        job.id === jobId
+          ? {
+              ...job,
+              status: newStatus,
+            }
+          : job
+      )
+    );
+  }
+
   if (loading) {
-    return <main className="p-8">Loading jobs...</main>;
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50">
+        <p className="text-slate-600">Loading jobs...</p>
+      </main>
+    );
   }
 
   if (error) {
     return (
-      <main className="p-8">
-        <h1 className="text-2xl font-bold">Supabase connection error</h1>
-        <p className="mt-4 text-red-600">{error}</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-6">
+          <h1 className="text-xl font-semibold text-red-700">
+            Unable to load jobs
+          </h1>
+
+          <p className="mt-2 text-red-600">{error}</p>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="p-8">
-      <h1 className="text-3xl font-bold">AI Job Tracker</h1>
+    <main className="min-h-screen bg-slate-50">
+      <div className="mx-auto max-w-7xl px-6 py-8">
+        <header className="mb-8">
+          <p className="text-sm font-medium text-blue-600">
+            AI Job Tracker
+          </p>
 
-      <p className="mt-2">
-        Jobs loaded from Supabase: <strong>{jobs.length}</strong>
-      </p>
+          <h1 className="mt-1 text-3xl font-bold text-slate-900">
+            Job Dashboard
+          </h1>
 
-      <div className="mt-8 space-y-4">
-        {jobs.map((job) => (
-          <div key={job.id} className="rounded-lg border p-4">
-            <h2 className="text-xl font-semibold">{job.title}</h2>
+          <p className="mt-2 text-slate-500">
+            Track relevant jobs collected automatically from your
+            LinkedIn alerts.
+          </p>
+        </header>
 
-            <p>{job.company ?? "Unknown company"}</p>
-            <p>{job.location ?? "Location unavailable"}</p>
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            label="Total Jobs"
+            value={totalJobs}
+          />
 
-            <p className="mt-2">
-              Match: {job.match_score} — {job.match_level}
-            </p>
+          <StatCard
+            label="High Matches"
+            value={highMatches}
+          />
 
-            <p>Status: {job.status}</p>
+          <StatCard
+            label="Medium Matches"
+            value={mediumMatches}
+          />
+
+          <StatCard
+            label="Applied"
+            value={appliedJobs}
+          />
+        </section>
+
+        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="grid gap-4 md:grid-cols-3">
+            <input
+              type="text"
+              placeholder="Search title, company or location..."
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500"
+            />
+
+            <select
+              value={matchFilter}
+              onChange={(event) =>
+                setMatchFilter(event.target.value)
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500"
+            >
+              <option value="all">
+                All match levels
+              </option>
+
+              <option value="high">
+                High matches
+              </option>
+
+              <option value="medium">
+                Medium matches
+              </option>
+            </select>
+
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value)
+              }
+              className="rounded-lg border border-slate-300 px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-blue-500"
+            >
+              <option value="all">
+                All statuses
+              </option>
+
+              <option value="new">
+                New
+              </option>
+
+              <option value="saved">
+                Saved
+              </option>
+
+              <option value="applied">
+                Applied
+              </option>
+
+              <option value="rejected">
+                Rejected
+              </option>
+            </select>
           </div>
-        ))}
+        </section>
+
+        <section className="mt-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">
+              Recommended Jobs
+            </h2>
+
+            <span className="text-sm text-slate-500">
+              {filteredJobs.length} jobs
+            </span>
+          </div>
+
+          {filteredJobs.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+              <p className="text-slate-500">
+                No jobs match your current filters.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredJobs.map((job) => (
+                <JobCard
+                  key={job.id}
+                  job={job}
+                  onStatusChange={
+                    updateJobStatus
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </main>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <p className="text-sm text-slate-500">
+        {label}
+      </p>
+
+      <p className="mt-2 text-3xl font-bold text-slate-900">
+        {value}
+      </p>
+    </div>
+  );
+}
+
+function JobCard({
+  job,
+  onStatusChange,
+}: {
+  job: Job;
+  onStatusChange: (
+    jobId: number,
+    status: string
+  ) => void;
+}) {
+  const levelStyles =
+    job.match_level === "high"
+      ? "bg-emerald-100 text-emerald-700"
+      : "bg-amber-100 text-amber-700";
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md">
+      <div className="flex flex-col justify-between gap-5 md:flex-row md:items-start">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-xl font-semibold text-slate-900">
+              {job.title}
+            </h3>
+
+            <span
+              className={`rounded-full px-3 py-1 text-xs font-semibold ${levelStyles}`}
+            >
+              {job.match_level.toUpperCase()} ·{" "}
+              {job.match_score}
+            </span>
+          </div>
+
+          <p className="mt-2 font-medium text-slate-700">
+            {job.company ??
+              "Unknown company"}
+          </p>
+
+          <p className="mt-1 text-sm text-slate-500">
+            {job.location ??
+              "Location unavailable"}
+          </p>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {job.easy_apply && (
+              <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                Easy Apply
+              </span>
+            )}
+
+            {job.actively_recruiting && (
+              <span className="rounded-md bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700">
+                Actively Recruiting
+              </span>
+            )}
+
+            <select
+              value={job.status}
+              onChange={(event) =>
+                onStatusChange(
+                  job.id,
+                  event.target.value
+                )
+              }
+              className="rounded-md border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 outline-none focus:border-blue-500"
+            >
+              <option value="new">
+                New
+              </option>
+
+              <option value="saved">
+                Saved
+              </option>
+
+              <option value="applied">
+                Applied
+              </option>
+
+              <option value="rejected">
+                Rejected
+              </option>
+            </select>
+          </div>
+
+          {job.filter_reason && (
+            <p className="mt-4 max-w-3xl text-sm text-slate-500">
+              {job.filter_reason}
+            </p>
+          )}
+        </div>
+
+        <a
+          href={job.job_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center justify-center rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700"
+        >
+          View Job
+        </a>
+      </div>
+    </article>
   );
 }
