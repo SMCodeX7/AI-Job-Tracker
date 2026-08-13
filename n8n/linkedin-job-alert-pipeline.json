@@ -1,0 +1,223 @@
+{
+  "name": "LinkedIn Job Collector",
+  "nodes": [
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {
+          "q": "from:jobalerts-noreply@linkedin.com"
+        }
+      },
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -688,
+        -432
+      ],
+      "id": "7ddb7f12-a832-481b-b142-9577c534f709",
+      "name": "Gmail Trigger",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "messageId": "={{ $json.id }}",
+        "simple": false,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -336,
+        -432
+      ],
+      "id": "76667910-ba6c-428f-ac4e-ea3d2fb90e14",
+      "name": "Get a message",
+      "credentials": {
+        "gmailOAuth2": {
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "={{ 'jobs' }}",
+        "dataToSend": "autoMapInputData"
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        96,
+        -176
+      ],
+      "id": "f4d9faad-0d1f-4b6e-b6fa-d39f5552f127",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "dedupeValue": "={{ $json.job_id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        -176
+      ],
+      "id": "f195ecaf-baf3-4b22-936a-8a7b9835d7f1",
+      "name": "Skip Previously Seen Jobs"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\n\nreturn items.map((item) => {\n  const job = item.json;\n\n  const title = (job.title || '').toLowerCase();\n  const subject = (job.email_subject || '').toLowerCase();\n\n  let score = 0;\n  const reasons = [];\n\n  // Strong Data / AI / ML role relevance\n  const highValueKeywords = [\n    'data science',\n    'data scientist',\n    'machine learning',\n    'ml engineer',\n    'ai engineer',\n    'artificial intelligence',\n    'ai/ml',\n    'data analyst',\n    'data analytics',\n    'business intelligence',\n    'bi analyst',\n    'data engineer'\n  ];\n\n  for (const keyword of highValueKeywords) {\n    if (title.includes(keyword)) {\n      score += 40;\n      reasons.push(`Relevant role: ${keyword}`);\n      break;\n    }\n  }\n\n  // Related technical roles\n  const relatedKeywords = [\n    'analytics',\n    'python',\n    'power bi',\n    'sql',\n    'computer vision',\n    'nlp',\n    'deep learning',\n    'predictive analytics',\n    'research'\n  ];\n\n  for (const keyword of relatedKeywords) {\n    if (title.includes(keyword)) {\n      score += 15;\n      reasons.push(`Related skill/domain: ${keyword}`);\n      break;\n    }\n  }\n\n  // Internship / student level\n  const internshipKeywords = [\n    'intern',\n    'internship',\n    'co-op',\n    'coop',\n    'trainee'\n  ];\n\n  if (internshipKeywords.some(keyword => title.includes(keyword))) {\n    score += 35;\n    reasons.push('Internship / student-level opportunity');\n  }\n\n  // Entry-level indicators\n  const entryKeywords = [\n    'junior',\n    'entry level',\n    'entry-level',\n    'graduate',\n    'associate'\n  ];\n\n  if (entryKeywords.some(keyword => title.includes(keyword))) {\n    score += 25;\n    reasons.push('Entry-level opportunity');\n  }\n\n  // Penalize senior roles\n  const seniorKeywords = [\n    'senior',\n    'sr.',\n    'sr ',\n    'lead',\n    'principal',\n    'staff',\n    'manager',\n    'director',\n    'head of',\n    'architect'\n  ];\n\n  if (seniorKeywords.some(keyword => title.includes(keyword))) {\n    score -= 45;\n    reasons.push('Senior-level role');\n  }\n\n  // Data / ML alert context\n  const alertKeywords = [\n    'data science',\n    'machine learning',\n    'artificial intelligence',\n    'data analyst',\n    'data analytics',\n    'data engineer',\n    'business intelligence'\n  ];\n\n  if (alertKeywords.some(keyword => subject.includes(keyword))) {\n    score += 10;\n    reasons.push('Received from relevant LinkedIn alert');\n  }\n\n  // Easy Apply bonus\n  if (job.easy_apply === true) {\n    score += 5;\n    reasons.push('Easy Apply available');\n  }\n\n  // Keep score between 0 and 100\n  score = Math.max(0, Math.min(100, score));\n\n  // Match level\n  let matchLevel;\n\n  if (score >= 75) {\n    matchLevel = 'high';\n  } else if (score >= 50) {\n    matchLevel = 'medium';\n  } else {\n    matchLevel = 'low';\n  }\n\n  return {\n    json: {\n      ...job,\n      match_score: score,\n      match_level: matchLevel,\n      filter_reason: reasons.join('; ')\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -688,
+        -176
+      ],
+      "id": "5b9bd462-0f98-458b-8dee-4a6e469e6612",
+      "name": "Score Job Relevance"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "1fe1dda3-5a36-4d21-b4ca-e0c1ae1fe74f",
+              "leftValue": "={{ $json.match_score }}",
+              "rightValue": 50,
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.3,
+      "position": [
+        -416,
+        -176
+      ],
+      "id": "e0dd5b99-a796-4cd9-ad51-c84fe581bb36",
+      "name": "Keep Medium & High Matches"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst html = input.html || '';\n\nfunction decodeHtml(value = '') {\n  return value\n    .replace(/&middot;/gi, '·')\n    .replace(/&nbsp;/gi, ' ')\n    .replace(/&amp;/gi, '&')\n    .replace(/&quot;/gi, '\"')\n    .replace(/&#39;/gi, \"'\")\n    .replace(/&apos;/gi, \"'\")\n    .replace(/&#x27;/gi, \"'\")\n    .replace(/&#(\\d+);/g, (_, n) =>\n      String.fromCharCode(Number(n))\n    )\n    .replace(/&#x([0-9a-f]+);/gi, (_, n) =>\n      String.fromCharCode(parseInt(n, 16))\n    );\n}\n\nfunction cleanText(value = '') {\n  return decodeHtml(\n    value\n      .replace(/<[^>]+>/g, ' ')\n      .replace(/\\s+/g, ' ')\n      .trim()\n  );\n}\n\n// Split the LinkedIn email into individual job cards\nconst cards = html\n  .split(/data-test-id=\"job-card\"/i)\n  .slice(1);\n\nconst jobs = [];\n\nfor (const card of cards) {\n\n  // Find LinkedIn Job ID\n  const jobLinkMatch = card.match(\n    /href=\"([^\"]*linkedin\\.com\\/comm\\/jobs\\/view\\/(\\d+)[^\"]*)\"/i\n  );\n\n  if (!jobLinkMatch) {\n    continue;\n  }\n\n  const jobId = jobLinkMatch[2];\n\n  // Find job title\n  let titleMatch = card.match(\n    new RegExp(\n      `href=\"[^\"]*jobcard_body_${jobId}[^\"]*\"[^>]*>([\\\\s\\\\S]*?)<\\\\/a>`,\n      'i'\n    )\n  );\n\n  // Fallback title extraction\n  if (!titleMatch) {\n    titleMatch = card.match(\n      /<a[^>]*class=\"[^\"]*text-md[^\"]*text-color-brand[^\"]*\"[^>]*>([\\s\\S]*?)<\\/a>/i\n    );\n  }\n\n  const title = titleMatch\n    ? cleanText(titleMatch[1])\n    : null;\n\n  // Find company + location\n  const companyLocationMatch = card.match(\n    /<p[^>]*class=\"[^\"]*text-system-gray-100[^\"]*\"[^>]*>([\\s\\S]*?)<\\/p>/i\n  );\n\n  let company = null;\n  let location = null;\n\n  if (companyLocationMatch) {\n    const companyLocation = cleanText(\n      companyLocationMatch[1]\n    );\n\n    const separatorIndex = companyLocation.indexOf('·');\n\n    if (separatorIndex !== -1) {\n      company = companyLocation\n        .substring(0, separatorIndex)\n        .trim();\n\n      location = companyLocation\n        .substring(separatorIndex + 1)\n        .trim();\n    } else {\n      company = companyLocation;\n    }\n  }\n\n  jobs.push({\n    job_id: jobId,\n    title,\n    company,\n    location,\n\n    job_url:\n      `https://www.linkedin.com/jobs/view/${jobId}`,\n\n    source: 'LinkedIn',\n\n    easy_apply:\n      /Easy Apply/i.test(card),\n\n    actively_recruiting:\n      /Actively recruiting/i.test(card),\n\n    email_subject:\n      input.subject || null,\n\n    received_at:\n      input.date || null\n  });\n}\n\n// Remove accidental duplicate jobs\nconst uniqueJobs = [];\n\nconst seen = new Set();\n\nfor (const job of jobs) {\n  if (!seen.has(job.job_id)) {\n    seen.add(job.job_id);\n    uniqueJobs.push(job);\n  }\n}\n\nreturn uniqueJobs.map(job => ({\n  json: job\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -16,
+        -432
+      ],
+      "id": "886c2e0d-d9bb-4314-8038-eded9ec348e0",
+      "name": "Extract LinkedIn Jobs"
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Get a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a message": {
+      "main": [
+        [
+          {
+            "node": "Extract LinkedIn Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Previously Seen Jobs": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Score Job Relevance": {
+      "main": [
+        [
+          {
+            "node": "Keep Medium & High Matches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Keep Medium & High Matches": {
+      "main": [
+        [
+          {
+            "node": "Skip Previously Seen Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract LinkedIn Jobs": {
+      "main": [
+        [
+          {
+            "node": "Score Job Relevance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}
